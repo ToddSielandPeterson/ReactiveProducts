@@ -35,9 +35,9 @@ abstract class ProductApplication(context: LagomApplicationContext)
   override lazy val lagomServer = serverFor[ProductService](wire[ProductServiceImpl])
 
   // Register the JSON serializer registry
-  override lazy val jsonSerializerRegistry = HellolagomSerializerRegistry
+  override lazy val jsonSerializerRegistry = ProductSerializerRegistry
 
   // Register the hello-lagom persistent entity
-  persistentEntityRegistry.register(wire[HellolagomEntity])
+  persistentEntityRegistry.register(wire[ProductEntity])
 
 }

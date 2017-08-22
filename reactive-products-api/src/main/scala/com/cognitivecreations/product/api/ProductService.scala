@@ -9,37 +9,48 @@ import com.lightbend.lagom.scaladsl.api.broker.kafka.{KafkaProperties, Partition
 import com.lightbend.lagom.scaladsl.api.transport.Method
 import com.lightbend.lagom.scaladsl.api.{Service, ServiceCall}
 
-object ProductService {
-  val TOPIC_NAME = "productService"
-}
+case class PageFilter(filter: Option[String])
+case class PageSort(sortType: Option[String] = Some(PageSort.SORT_NATURAL), pageSize: Option[Int] = Some(-1), pageNumber: Option[Int] = Some(1))
 
-
-trait ProductService extends Service {
-
+object PageSort {
   val SORT_NATURAL = "natural"
   val SORT_BY_NAME = "name"
   val SORT_BY_BRAND = "brand"
   val SORT_LOW_TO_HIGH = "lowhigh"
   val SORT_HIGH_TO_LOW = "highlow"
+}
 
-  def getSingleProductById(id: Int): ServiceCall[NotUsed, Product]
-  def getProductsForVendor(vendorId: String, pageSize: Option[Int], pageNumber: Option[Int]): ServiceCall[NotUsed, List[Product]]
-  def getProductsInCategoryIdForResellerWithSort(reseller: Int,  categoryId: Int, sortType: Option[String], pageSize: Option[Int], pageNumber: Option[Int]): ServiceCall[NotUsed, List[Product]]
-  def getProductsInCategoryNameForResellerWithSort(reseller: Int,  categoryNumber: String, sortType: Option[String], pageSize: Option[Int], pageNumber: Option[Int]): ServiceCall[NotUsed, List[Product]]
-  def getProductsInCategoryIdForReseller(reseller: Int,  categoryId: Int): ServiceCall[NotUsed, List[Product]] = {
-    getProductsInCategoryIdForResellerWithSort(reseller, categoryId, Some(SORT_NATURAL), Some(-1), Some(0))
+object ProductService {
+  val TOPIC_NAME = "productService"
+}
+
+trait ProductService extends Service {
+
+  def getSingleProductById(id: String): ServiceCall[NotUsed, Product]
+  def getProductsInCategoryIdForResellerSorted(reseller: String,  categoryId: String, pageSort: PageSort): ServiceCall[NotUsed, List[Product]]
+  def getProductsInCategoryNameForResellerSorted(reseller: String,  categoryNumber: Int, pageSort: PageSort): ServiceCall[NotUsed, List[Product]]
+
+  def getProductsForVendorWithSortAndFilter(vendorId: String, pageSort: PageSort, filter: PageFilter): ServiceCall[NotUsed, List[Product]]
+
+  def deleteItemForVendor(vendorId: String, productId: String): ServiceCall[NotUsed, Boolean]
+
+  def addItemForVendor(vendorId: String): ServiceCall[NotUsed, UUID]
+
+  // Composite Methods
+  def getProductsForVendor(vendorId: String, sortType: Option[String], pageSize: Option[Int], pageNumber: Option[Int], filterString: Option[String]): ServiceCall[NotUsed, List[Product]] = {
+    getProductsForVendorWithSortAndFilter(vendorId, new PageSort(sortType, pageSize, pageNumber), new PageFilter(filterString))
   }
-
-  def getProductsInCategoryNameForReseller(reseller: Int,  categoryNumber: String): ServiceCall[NotUsed, List[Product]] = {
-    getProductsInCategoryNameForResellerWithSort(reseller, categoryNumber, Some(SORT_NATURAL), Some(-1), Some(0))
+  def getProductsInCategoryIdForResellerWithSort(reseller: String,  categoryId: String, sortType: String, pageSize: Int, pageNumber: Int): ServiceCall[NotUsed, List[Product]] = {
+    getProductsInCategoryIdForResellerSorted(reseller, categoryId, new PageSort(Some(sortType), Some(pageSize), Some(pageNumber)))
   }
-
-  def deleteItemForVendor(id: Int): ServiceCall[NotUsed, Boolean] = {
-
+  def getProductsInCategoryNameForResellerWithSort(reseller: String,  categoryNumber: Int, sortType: String, pageSize: Int, pageNumber: Int): ServiceCall[NotUsed, List[Product]] = {
+    getProductsInCategoryNameForResellerSorted(reseller, categoryNumber, new PageSort(Some(sortType), Some(pageSize), Some(pageNumber)))
   }
-
-  def addItemForVendor(id: Int): ServiceCall[NotUsed, UUID] = {
-
+  def getProductsInCategoryIdForReseller(reseller: String,  categoryId: String): ServiceCall[NotUsed, List[Product]] = {
+    getProductsInCategoryIdForResellerSorted(reseller, categoryId, new PageSort())
+  }
+  def getProductsInCategoryNameForReseller(reseller: String,  categoryNumber: Int): ServiceCall[NotUsed, List[Product]] = {
+    getProductsInCategoryNameForResellerSorted(reseller, categoryNumber, new PageSort())
   }
 
   /**
@@ -53,13 +64,12 @@ trait ProductService extends Service {
     named("productapi")
         .withCalls(
           pathCall("/api/product/:id", getSingleProductById _),
-          pathCall("/api/products/vendor/vendorId:?pageNumber&pageSize", getProductsForVendor _),
+          pathCall("/api/products/vendor/vendorId:?sortType&pageNumber&pageSize&filterString", getProductsForVendor _),
           pathCall("/api/products/reseller/resllerId:/categoryId/:categoryId?sortType&pageNumber&pageSize", getProductsInCategoryIdForResellerWithSort _),
           pathCall("/api/products/reseller/resllerId:/category/:categoryName?sortType&pageNumber&pageSize", getProductsInCategoryNameForResellerWithSort _),
           pathCall("/api/products/reseller/resllerId:/categoryId/:categoryId", getProductsInCategoryIdForReseller _),
           pathCall("/api/products/reseller/resllerId:/category/:categoryName", getProductsInCategoryNameForReseller _),
           restCall(Method.DELETE, "/api/product/vendor/:vendorId/product/:id", deleteItemForVendor _),
-          restCall(Method.PUT, "/api/product/vendor/:vendorId/product/:id", deleteItemForVendor _),
           restCall(Method.PUT, "/api/product/vendor/:vendorId", addItemForVendor _)
         )
         .withTopics(

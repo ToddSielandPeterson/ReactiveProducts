@@ -22,9 +22,10 @@ class ProductEntity extends PersistentEntity {
 
   override def behavior: Behavior = {
     case ProductState(message, _) => Actions().onCommand[Command, Done] {
-      // Command handler for the UseGreetingMessage command
+
       case (AddProduct(product), ctx, state) =>
         ctx.thenPersist( ProductAdded(product) ) { _ => ctx.reply(Done) }
+
       case (UpdateQuantity(id, quantity), ctx, state) =>
         ctx.thenPersist( QuantityUpdated(id, quantity) ) { _ => ctx.reply(Done) }
 
@@ -37,22 +38,16 @@ class ProductEntity extends PersistentEntity {
 
       case (QuantityUpdated(id, newQuantity), state) =>
         ProductState(product = state.product.copy(quantityOnHand = newQuantity), LocalDateTime.now().toString)
+
     }
   }
 }
 
+/**
+  * Main product state
+  */
 case class ProductState(product: Product, timestamp: String)
-
 object ProductState {
-  /**
-    * Format for the hello state.
-    *
-    * Persisted entities get snapshotted every configured number of events. This
-    * means the state gets stored to the database, so that when the entity gets
-    * loaded, you don't need to replay all the events, just the ones since the
-    * snapshot. Hence, a JSON format needs to be declared so that it can be
-    * serialized and deserialized when storing to and from the database.
-    */
   implicit val format: Format[ProductState] = Json.format
 }
 
@@ -67,8 +62,32 @@ object ProductEvent {
   val Tag = AggregateEventTag[ProductEvent]
 }
 
+sealed trait ProductCommand[R] extends ReplyType[R]
+
+
 /**
-  * An event that represents a change in greeting message.
+  * This interface defines all the commands that the HelloWorld entity supports.
+  */
+case class FetchOneProductCommand(id: Int) extends ProductCommand[ProductEntity]
+object FetchOneProductCommand {
+  implicit val formatFetchOneProductCommand: Format[FetchOneProductCommand] = Json.format
+}
+
+/**
+  * Commands
+  */
+case class AddProduct(product: Product) extends ProductCommand[ProductEntity]
+object AddProduct {
+  implicit val formatNewProduct: Format[AddProduct] = Json.format
+}
+
+case class UpdateQuantity(id: String, newQuantity: Int) extends ProductCommand[ProductEntity]
+object UpdateQuantity {
+  implicit val formatUpdateQuantity: Format[UpdateQuantity] = Json.format
+}
+
+/**
+  * Events
   */
 case class QuantityUpdated(id: String, newQuantity: Int) extends ProductEvent
 object QuantityUpdated {
@@ -78,27 +97,6 @@ object QuantityUpdated {
 case class ProductAdded(product: Product) extends ProductEvent
 object ProductAdded {
   implicit val formatQuantityUpdated: Format[ProductAdded] = Json.format
-}
-
-/**
-  * This interface defines all the commands that the HelloWorld entity supports.
-  */
-sealed trait ProductCommand[R] extends ReplyType[R]
-
-case class FetchOneProductCommand(id: Int) extends ProductCommand[ProductEntity]
-object FetchOneProductCommand {
-  implicit val formatFetchOneProductCommand: Format[FetchOneProductCommand] = Json.format
-}
-
-// update commands
-case class AddProduct(product: Product) extends ProductCommand[ProductEntity]
-object AddProduct {
-  implicit val formatNewProduct: Format[AddProduct] = Json.format
-}
-
-case class UpdateQuantity(id: String, newQuantity: Int) extends ProductCommand[ProductEntity]
-object UpdateQuantity {
-  implicit val formatUpdateQuantity: Format[UpdateQuantity] = Json.format
 }
 
 /**
